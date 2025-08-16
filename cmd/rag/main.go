@@ -8,6 +8,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/joho/godotenv"
 
 	"rag/internal/chunker"
 	"rag/internal/config"
@@ -20,6 +21,9 @@ import (
 )
 
 func main() {
+	// Load environment variables from .env if present; ignore errors
+	_ = godotenv.Load()
+
 	cfgPath := flag.String("config", "", "Path to config YAML (optional; otherwise uses persisted default)")
 	flag.Parse()
 	inputs := flag.Args()
