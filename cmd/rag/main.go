@@ -14,17 +14,21 @@ import (
 	"rag/internal/config"
 	"rag/internal/domain"
 	"rag/internal/embedding"
+	"rag/internal/embedding/openai"
+	"rag/internal/embedding/tfidf"
 	"rag/internal/service"
 	"rag/internal/summarizer"
 	"rag/internal/tui"
 	"rag/internal/vectorstore"
+	"rag/internal/vectorstore/memory"
+	"rag/internal/vectorstore/qdrant"
 )
 
 func main() {
-	// Load environment variables from .env if present; ignore errors
 	_ = godotenv.Load()
 
-	cfgPath := flag.String("config", "", "Path to config YAML (optional; otherwise uses persisted default)")
+	var cfgPath string
+	flag.StringVar(&cfgPath, "config", "", "Path to YAML config file (optional; uses ~/.config/rag/config.yaml if not provided)")
 	flag.Parse()
 	inputs := flag.Args()
 	if len(inputs) == 0 {
@@ -34,25 +38,25 @@ func main() {
 
 	var cfg *config.AppConfig
 	var err error
-	if *cfgPath == "" {
+	if cfgPath == "" {
 		cfg, _, err = config.LoadDefault()
 	} else {
-		cfg, err = config.Load(*cfgPath)
+		cfg, err = config.Load(cfgPath)
 	}
 	if err != nil {
 		log.Fatalf("failed to load config: %v", err)
 	}
 
-	// Assemble components via interfaces
-	var emb domain.Embedder
+	// Assemble components
+	var emb embedding.Embedder
 	switch cfg.Embedder.Type {
 	case "tfidf", "":
-		emb = embedding.NewTFIDFEmbedder()
+		emb = tfidf.NewEmbedder()
 	case "openai":
 		if cfg.Embedder.OpenAI == nil {
 			log.Fatalf("openai embedder config missing")
 		}
-		client, err := embedding.NewOpenAIClient(embedding.OpenAIConfig{
+		client, err := openai.NewClient(openai.Config{
 			BaseURL:   cfg.Embedder.OpenAI.BaseURL,
 			APIKeyEnv: cfg.Embedder.OpenAI.APIKeyEnv,
 			Model:     cfg.Embedder.OpenAI.Model,
@@ -74,20 +78,20 @@ func main() {
 		log.Fatalf("unknown chunker: %s", cfg.Chunker.Type)
 	}
 
-	var st domain.VectorStore
+	var st vectorstore.Storage
 	switch cfg.VectorStore.Type {
 	case "memory", "":
-		st = vectorstore.NewMemoryStore()
+		st = memory.NewStorage()
 	case "qdrant":
 		if cfg.VectorStore.Qdrant == nil {
 			log.Fatalf("qdrant config missing")
 		}
-		qcfg := vectorstore.QdrantConfig{
+		qcfg := qdrant.Config{
 			URL:        cfg.VectorStore.Qdrant.URL,
 			APIKey:     cfg.VectorStore.Qdrant.APIKey,
 			Collection: cfg.VectorStore.Qdrant.Collection,
 		}
-		st = vectorstore.NewQdrantStore(qcfg)
+		st = qdrant.NewStorage(qcfg)
 	default:
 		log.Fatalf("unknown vector store: %s", cfg.VectorStore.Type)
 	}
@@ -107,7 +111,7 @@ func main() {
 	}
 
 	m := tui.New(svc, summary)
-	if err := tea.NewProgram(m).Start(); err != nil {
+	if _, err := tea.NewProgram(m).Run(); err != nil {
 		log.Fatal(err)
 	}
 }

@@ -21,27 +21,13 @@ type SearchResult struct {
 	Score float64
 }
 
-// Embedder converts free text into a numeric vector representation.
-// Implementations may require a preparation phase over the corpus.
-type Embedder interface {
-	Name() string
-	Prepare(corpus []string) error
-	Dimension() int
-	Embed(text string) ([]float64, error)
-}
 
 // Chunker splits documents into chunks suitable for retrieval indexing.
 type Chunker interface {
 	Chunk(document Document) ([]Chunk, error)
 }
 
-// VectorStore persists vectors and supports similarity search.
-type VectorStore interface {
-	Init(dimension int) error
-	Upsert(chunks []Chunk, vectors [][]float64) error
-	Search(vector []float64, topK int) ([]SearchResult, error)
-	Clear() error
-}
+
 
 // Summarizer produces a brief summary of the provided text.
 type Summarizer interface {

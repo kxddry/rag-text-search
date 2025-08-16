@@ -1,4 +1,4 @@
-package embedding
+package openai
 
 import (
 	"bytes"
@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-type OpenAIClient struct {
+type Client struct {
 	baseURL    string
 	apiKey     string
 	model      string
@@ -22,14 +22,14 @@ type OpenAIClient struct {
 	maxRetries int
 }
 
-type OpenAIConfig struct {
+type Config struct {
 	BaseURL   string
 	APIKeyEnv string
 	Model     string
 	Timeout   time.Duration
 }
 
-func NewOpenAIClient(cfg OpenAIConfig) (*OpenAIClient, error) {
+func NewClient(cfg Config) (*Client, error) {
 	key := os.Getenv(cfg.APIKeyEnv)
 	if key == "" {
 		return nil, fmt.Errorf("missing API key in env %s", cfg.APIKeyEnv)
@@ -44,7 +44,7 @@ func NewOpenAIClient(cfg OpenAIConfig) (*OpenAIClient, error) {
 	if t == 0 {
 		t = 30 * time.Second
 	}
-	return &OpenAIClient{
+	return &Client{
 		baseURL:    cfg.BaseURL,
 		apiKey:     key,
 		model:      cfg.Model,
@@ -54,14 +54,14 @@ func NewOpenAIClient(cfg OpenAIConfig) (*OpenAIClient, error) {
 	}, nil
 }
 
-func (c *OpenAIClient) Name() string { return "openai" }
+func (c *Client) Name() string { return "openai" }
 
 // Prepare is not required for remote embedding. We will lazily set dimension on first embed.
-func (c *OpenAIClient) Prepare(corpus []string) error { return nil }
+func (c *Client) Prepare(corpus []string) error { return nil }
 
-func (c *OpenAIClient) Dimension() int { return c.dimension }
+func (c *Client) Dimension() int { return c.dimension }
 
-func (c *OpenAIClient) Embed(text string) ([]float64, error) {
+func (c *Client) Embed(text string) ([]float64, error) {
 	type reqBody struct {
 		Input  string `json:"input,omitempty"`
 		Prompt string `json:"prompt,omitempty"`

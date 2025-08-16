@@ -1,4 +1,4 @@
-package embedding
+package tfidf
 
 import (
 	"errors"
@@ -10,7 +10,7 @@ import (
 
 // TFIDFEmbedder implements a simple TF-IDF vectorizer as an Embedder.
 // It builds a vocabulary from the corpus and computes IDF values.
-type TFIDFEmbedder struct {
+type Embedder struct {
 	vocabulary   map[string]int
 	idf          []float64
 	dimension    int
@@ -19,17 +19,17 @@ type TFIDFEmbedder struct {
 	stopwords    map[string]struct{}
 }
 
-func NewTFIDFEmbedder() *TFIDFEmbedder {
-	return &TFIDFEmbedder{
+func NewEmbedder() *Embedder {
+	return &Embedder{
 		vocabulary:   make(map[string]int),
 		tokenPattern: regexp.MustCompile(`\p{L}+(?:['’]\p{L}+)*`),
 		stopwords:    defaultStopwords(),
 	}
 }
 
-func (e *TFIDFEmbedder) Name() string { return "tfidf" }
+func (e *Embedder) Name() string { return "tfidf" }
 
-func (e *TFIDFEmbedder) Prepare(corpus []string) error {
+func (e *Embedder) Prepare(corpus []string) error {
 	if len(corpus) == 0 {
 		return errors.New("empty corpus for TF-IDF prepare")
 	}
@@ -71,9 +71,9 @@ func (e *TFIDFEmbedder) Prepare(corpus []string) error {
 	return nil
 }
 
-func (e *TFIDFEmbedder) Dimension() int { return e.dimension }
+func (e *Embedder) Dimension() int { return e.dimension }
 
-func (e *TFIDFEmbedder) Embed(text string) ([]float64, error) {
+func (e *Embedder) Embed(text string) ([]float64, error) {
 	if !e.prepared {
 		return nil, errors.New("tfidf embedder not prepared")
 	}
@@ -111,7 +111,7 @@ func (e *TFIDFEmbedder) Embed(text string) ([]float64, error) {
 	return vec, nil
 }
 
-func (e *TFIDFEmbedder) tokenize(text string) []string {
+func (e *Embedder) tokenize(text string) []string {
 	lower := strings.ToLower(text)
 	raw := e.tokenPattern.FindAllString(lower, -1)
 	if len(raw) == 0 {

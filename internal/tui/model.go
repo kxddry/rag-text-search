@@ -82,15 +82,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.viewport.SetContent(m.renderCurrentResult())
 				return m, nil
 			}
-		case "n", "right":
+		case "down":
 			if len(m.results) > 0 {
 				m.cursor = (m.cursor + 1) % len(m.results)
 				m.viewport.SetContent(m.renderCurrentResult())
+				return m, nil
 			}
-		case "N", "left":
+		case "up":
 			if len(m.results) > 0 {
 				m.cursor = (m.cursor - 1 + len(m.results)) % len(m.results)
 				m.viewport.SetContent(m.renderCurrentResult())
+				return m, nil
 			}
 		}
 	}

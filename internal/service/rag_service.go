@@ -11,18 +11,21 @@ import (
 	"strings"
 
 	"rag/internal/domain"
+	"rag/internal/embedding"
+	"rag/internal/vectorstore"
 )
 
 type RAGServiceImpl struct {
-	chunker             domain.Chunker
-	embedder            domain.Embedder
-	store               domain.VectorStore
+	chunker domain.Chunker
+
+	embedder            embedding.Embedder
+	store               vectorstore.Storage
 	summarizer          domain.Summarizer
 	summaryMaxSentences int
 	chunks              []domain.Chunk
 }
 
-func NewRAGService(chunker domain.Chunker, embedder domain.Embedder, store domain.VectorStore, summarizer domain.Summarizer, summaryMaxSentences int) *RAGServiceImpl {
+func NewRAGService(chunker domain.Chunker, embedder embedding.Embedder, store vectorstore.Storage, summarizer domain.Summarizer, summaryMaxSentences int) *RAGServiceImpl {
 	return &RAGServiceImpl{chunker: chunker, embedder: embedder, store: store, summarizer: summarizer, summaryMaxSentences: summaryMaxSentences}
 }
 

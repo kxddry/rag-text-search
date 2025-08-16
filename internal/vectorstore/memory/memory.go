@@ -1,4 +1,4 @@
-package vectorstore
+package memory
 
 import (
 	"errors"
@@ -7,17 +7,17 @@ import (
 	"rag/internal/domain"
 )
 
-// MemoryStore is a simple in-memory vector store using brute-force cosine similarity.
-type MemoryStore struct {
+// Storage is a simple in-memory vector store using brute-force cosine similarity.
+type Storage struct {
 	mu        sync.RWMutex
 	dimension int
 	vectors   [][]float64
 	chunks    []domain.Chunk
 }
 
-func NewMemoryStore() *MemoryStore { return &MemoryStore{} }
+func NewStorage() *Storage { return &Storage{} }
 
-func (s *MemoryStore) Init(dimension int) error {
+func (s *Storage) Init(dimension int) error {
 	if dimension <= 0 {
 		return errors.New("invalid dimension")
 	}
@@ -29,7 +29,7 @@ func (s *MemoryStore) Init(dimension int) error {
 	return nil
 }
 
-func (s *MemoryStore) Upsert(chunks []domain.Chunk, vectors [][]float64) error {
+func (s *Storage) Upsert(chunks []domain.Chunk, vectors [][]float64) error {
 	if len(chunks) != len(vectors) {
 		return errors.New("chunks and vectors length mismatch")
 	}
@@ -45,7 +45,7 @@ func (s *MemoryStore) Upsert(chunks []domain.Chunk, vectors [][]float64) error {
 	return nil
 }
 
-func (s *MemoryStore) Search(vector []float64, topK int) ([]domain.SearchResult, error) {
+func (s *Storage) Search(vector []float64, topK int) ([]domain.SearchResult, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if topK <= 0 {
@@ -69,7 +69,7 @@ func (s *MemoryStore) Search(vector []float64, topK int) ([]domain.SearchResult,
 	return results, nil
 }
 
-func (s *MemoryStore) Clear() error {
+func (s *Storage) Clear() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.vectors = nil

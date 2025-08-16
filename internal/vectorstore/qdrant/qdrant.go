@@ -1,4 +1,4 @@
-package vectorstore
+package qdrant
 
 import (
 	"bytes"
@@ -11,9 +11,9 @@ import (
 	"rag/internal/domain"
 )
 
-// QdrantStore is a minimal REST client to Qdrant.
+// Storage is a minimal REST client to Qdrant.
 // It assumes cosine distance and creates the collection if missing.
-type QdrantStore struct {
+type Storage struct {
 	url        string
 	apiKey     string
 	collection string
@@ -21,19 +21,19 @@ type QdrantStore struct {
 	client     *http.Client
 }
 
-type QdrantConfig struct {
+type Config struct {
 	URL        string
 	APIKey     string
 	Collection string
 	Timeout    time.Duration
 }
 
-func NewQdrantStore(cfg QdrantConfig) *QdrantStore {
+func NewStorage(cfg Config) *Storage {
 	timeout := cfg.Timeout
 	if timeout == 0 {
 		timeout = 15 * time.Second
 	}
-	return &QdrantStore{
+	return &Storage{
 		url:        cfg.URL,
 		apiKey:     cfg.APIKey,
 		collection: cfg.Collection,
@@ -41,7 +41,7 @@ func NewQdrantStore(cfg QdrantConfig) *QdrantStore {
 	}
 }
 
-func (s *QdrantStore) Init(dimension int) error {
+func (s *Storage) Init(dimension int) error {
 	if dimension <= 0 {
 		return errors.New("invalid dimension")
 	}
@@ -60,7 +60,7 @@ func (s *QdrantStore) Init(dimension int) error {
 	return nil
 }
 
-func (s *QdrantStore) Upsert(chunks []domain.Chunk, vectors [][]float64) error {
+func (s *Storage) Upsert(chunks []domain.Chunk, vectors [][]float64) error {
 	if len(chunks) != len(vectors) {
 		return errors.New("chunks and vectors length mismatch")
 	}
@@ -81,7 +81,7 @@ func (s *QdrantStore) Upsert(chunks []domain.Chunk, vectors [][]float64) error {
 	return s.putJSON(fmt.Sprintf("%s/collections/%s/points?wait=true", s.url, s.collection), body)
 }
 
-func (s *QdrantStore) Search(vector []float64, topK int) ([]domain.SearchResult, error) {
+func (s *Storage) Search(vector []float64, topK int) ([]domain.SearchResult, error) {
 	if topK <= 0 {
 		topK = 5
 	}
@@ -119,7 +119,7 @@ func (s *QdrantStore) Search(vector []float64, topK int) ([]domain.SearchResult,
 	return results, nil
 }
 
-func (s *QdrantStore) Clear() error {
+func (s *Storage) Clear() error {
 	// Best-effort: drop collection
 	req, _ := http.NewRequest(http.MethodDelete, fmt.Sprintf("%s/collections/%s", s.url, s.collection), nil)
 	if s.apiKey != "" {
@@ -129,7 +129,7 @@ func (s *QdrantStore) Clear() error {
 	return nil
 }
 
-func (s *QdrantStore) putJSON(url string, body any) error {
+func (s *Storage) putJSON(url string, body any) error {
 	data, _ := json.Marshal(body)
 	req, _ := http.NewRequest(http.MethodPut, url, bytes.NewReader(data))
 	req.Header.Set("Content-Type", "application/json")
@@ -147,7 +147,7 @@ func (s *QdrantStore) putJSON(url string, body any) error {
 	return nil
 }
 
-func (s *QdrantStore) postJSON(url string, body any, out any) error {
+func (s *Storage) postJSON(url string, body any, out any) error {
 	data, _ := json.Marshal(body)
 	req, _ := http.NewRequest(http.MethodPost, url, bytes.NewReader(data))
 	req.Header.Set("Content-Type", "application/json")
