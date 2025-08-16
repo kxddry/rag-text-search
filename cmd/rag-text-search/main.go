@@ -24,7 +24,7 @@ func main() {
 	flag.Parse()
 	inputs := flag.Args()
 	if len(inputs) == 0 {
-		fmt.Println("Usage: rag-text-search [--config=config.yaml] file1.txt [file2.txt ...]")
+		fmt.Println("Usage: rag [--config=config.yaml] file1.txt [file2.txt ...]")
 		os.Exit(1)
 	}
 
