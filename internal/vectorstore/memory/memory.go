@@ -15,8 +15,10 @@ type Storage struct {
 	chunks    []domain.Chunk
 }
 
+// NewStorage creates a new empty in-memory vector store.
 func NewStorage() *Storage { return &Storage{} }
 
+// Init sets the vector dimensionality and clears existing data.
 func (s *Storage) Init(dimension int) error {
 	if dimension <= 0 {
 		return errors.New("invalid dimension")
@@ -29,6 +31,7 @@ func (s *Storage) Init(dimension int) error {
 	return nil
 }
 
+// Upsert appends the given chunks and vectors to the in-memory store.
 func (s *Storage) Upsert(chunks []domain.Chunk, vectors [][]float64) error {
 	if len(chunks) != len(vectors) {
 		return errors.New("chunks and vectors length mismatch")
@@ -45,6 +48,7 @@ func (s *Storage) Upsert(chunks []domain.Chunk, vectors [][]float64) error {
 	return nil
 }
 
+// Search returns the topK chunks by cosine similarity to the provided vector.
 func (s *Storage) Search(vector []float64, topK int) ([]domain.SearchResult, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -69,6 +73,7 @@ func (s *Storage) Search(vector []float64, topK int) ([]domain.SearchResult, err
 	return results, nil
 }
 
+// Clear removes all stored vectors and chunks.
 func (s *Storage) Clear() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

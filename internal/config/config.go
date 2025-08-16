@@ -8,6 +8,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// OpenAIEmbedderConfig holds configuration for the OpenAI-compatible embedder.
 type OpenAIEmbedderConfig struct {
 	BaseURL     string `yaml:"base_url"`
 	APIKeyEnv   string `yaml:"api_key_env"`
@@ -16,22 +17,26 @@ type OpenAIEmbedderConfig struct {
 	BatchSize   int    `yaml:"batch_size"`
 }
 
+// EmbedderConfig selects and configures the text embedder implementation.
 type EmbedderConfig struct {
 	Type   string                `yaml:"type"`
 	OpenAI *OpenAIEmbedderConfig `yaml:"openai,omitempty"`
 }
 
+// ChunkerConfig configures how documents are split into chunks.
 type ChunkerConfig struct {
 	Type              string `yaml:"type"`
 	SentencesPerChunk int    `yaml:"sentences_per_chunk"`
 	OverlapSentences  int    `yaml:"overlap_sentences"`
 }
 
+// VectorStoreConfig selects and configures the vector store implementation.
 type VectorStoreConfig struct {
 	Type   string        `yaml:"type"`
 	Qdrant *QdrantConfig `yaml:"qdrant,omitempty"`
 }
 
+// QdrantConfig contains connection details for a Qdrant vector store.
 type QdrantConfig struct {
 	URL         string `yaml:"url"`
 	APIKey      string `yaml:"api_key"`
@@ -40,11 +45,13 @@ type QdrantConfig struct {
 	TimeoutSecs int    `yaml:"timeout_secs"`
 }
 
+// SummarizerConfig selects and configures the summarizer.
 type SummarizerConfig struct {
 	Type         string `yaml:"type"`
 	MaxSentences int    `yaml:"max_sentences"`
 }
 
+// AppConfig is the root application configuration structure.
 type AppConfig struct {
 	Embedder    EmbedderConfig    `yaml:"embedder"`
 	Chunker     ChunkerConfig     `yaml:"chunker"`
@@ -110,7 +117,7 @@ func defaultUserConfigPath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-		return filepath.Join(home, ".config", "rag", "config.yaml"), nil
+	return filepath.Join(home, ".config", "rag", "config.yaml"), nil
 }
 
 func defaultConfig() *AppConfig {

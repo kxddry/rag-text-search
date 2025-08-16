@@ -15,6 +15,7 @@ import (
 	"rag/internal/vectorstore"
 )
 
+// RAGServiceImpl orchestrates chunking, embedding, storage, and summarization.
 type RAGServiceImpl struct {
 	chunker domain.Chunker
 
@@ -25,10 +26,12 @@ type RAGServiceImpl struct {
 	chunks              []domain.Chunk
 }
 
+// NewRAGService constructs a new RAG service instance with the provided components.
 func NewRAGService(chunker domain.Chunker, embedder embedding.Embedder, store vectorstore.Storage, summarizer domain.Summarizer, summaryMaxSentences int) *RAGServiceImpl {
 	return &RAGServiceImpl{chunker: chunker, embedder: embedder, store: store, summarizer: summarizer, summaryMaxSentences: summaryMaxSentences}
 }
 
+// IngestDocuments loads `.txt` files, chunks, embeds, indexes, and summarizes them.
 func (s *RAGServiceImpl) IngestDocuments(paths []string) (string, error) {
 	var documents []domain.Document
 	for _, p := range paths {
@@ -37,7 +40,7 @@ func (s *RAGServiceImpl) IngestDocuments(paths []string) (string, error) {
 			matches = []string{p}
 		}
 		for _, m := range matches {
-			if !strings.HasSuffix(strings.ToLower(m), ".txt") {
+			if !strings.HasSuffix(strings.ToLower(m), ".txt") && !strings.HasSuffix(strings.ToLower(m), ".md") {
 				continue
 			}
 			data, err := os.ReadFile(m)
@@ -49,7 +52,7 @@ func (s *RAGServiceImpl) IngestDocuments(paths []string) (string, error) {
 		}
 	}
 	if len(documents) == 0 {
-		return "", fmt.Errorf("no .txt documents found")
+		return "", fmt.Errorf("no .txt/.md documents found")
 	}
 	// Chunk
 	var allChunks []domain.Chunk
@@ -109,6 +112,7 @@ func (s *RAGServiceImpl) IngestDocuments(paths []string) (string, error) {
 	return summary, nil
 }
 
+// Query embeds the query and searches the vector store, falling back to lexical when needed.
 func (s *RAGServiceImpl) Query(query string, topK int) ([]domain.SearchResult, error) {
 	vec, err := s.embedder.Embed(query)
 	if err != nil {

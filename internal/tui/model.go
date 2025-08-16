@@ -13,11 +13,13 @@ import (
 	"rag/internal/domain"
 )
 
+// RAGPort is the TUI-facing subset of the RAG service.
 type RAGPort interface {
 	IngestDocuments(paths []string) (string, error)
 	Query(query string, topK int) ([]domain.SearchResult, error)
 }
 
+// Model is the Bubble Tea model for the TUI application.
 type Model struct {
 	service   RAGPort
 	input     textinput.Model
@@ -30,6 +32,7 @@ type Model struct {
 	lastQuery string
 }
 
+// New creates a new TUI model instance.
 func New(service RAGPort, summary string) Model {
 	ti := textinput.New()
 	ti.Prompt = "> "
@@ -40,8 +43,10 @@ func New(service RAGPort, summary string) Model {
 	return Model{service: service, input: ti, viewport: vp, summary: summary, status: "Loaded. Type to search."}
 }
 
+// Init initializes the model (text input cursor blink).
 func (m Model) Init() tea.Cmd { return textinput.Blink }
 
+// Update handles key and window events and updates the view state.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -101,6 +106,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+// View renders the TUI layout and current result.
 func (m Model) View() string {
 	if !m.ready {
 		return "Loading..."

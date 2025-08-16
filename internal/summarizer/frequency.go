@@ -13,6 +13,7 @@ type FrequencySummarizer struct {
 	stopwords    map[string]struct{}
 }
 
+// NewFrequencySummarizer creates a frequency-based sentence ranker summarizer.
 func NewFrequencySummarizer() *FrequencySummarizer {
 	return &FrequencySummarizer{
 		tokenPattern: regexp.MustCompile(`\p{L}+(?:['’]\p{L}+)*`),
@@ -20,6 +21,7 @@ func NewFrequencySummarizer() *FrequencySummarizer {
 	}
 }
 
+// Summarize returns a short summary by ranking sentences using token frequency.
 func (s *FrequencySummarizer) Summarize(text string, maxSentences int) (string, error) {
 	if maxSentences <= 0 {
 		maxSentences = 5

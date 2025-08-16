@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-// TFIDFEmbedder implements a simple TF-IDF vectorizer as an Embedder.
+// Embedder implements a simple TF-IDF vectorizer.
 // It builds a vocabulary from the corpus and computes IDF values.
 type Embedder struct {
 	vocabulary   map[string]int
@@ -19,6 +19,7 @@ type Embedder struct {
 	stopwords    map[string]struct{}
 }
 
+// NewEmbedder creates an unprepared TF-IDF embedder.
 func NewEmbedder() *Embedder {
 	return &Embedder{
 		vocabulary:   make(map[string]int),
@@ -27,8 +28,10 @@ func NewEmbedder() *Embedder {
 	}
 }
 
+// Name returns the identifier of this embedder implementation.
 func (e *Embedder) Name() string { return "tfidf" }
 
+// Prepare builds the vocabulary and IDF values from the provided corpus.
 func (e *Embedder) Prepare(corpus []string) error {
 	if len(corpus) == 0 {
 		return errors.New("empty corpus for TF-IDF prepare")
@@ -71,8 +74,10 @@ func (e *Embedder) Prepare(corpus []string) error {
 	return nil
 }
 
+// Dimension returns the dimensionality of the produced embedding vectors.
 func (e *Embedder) Dimension() int { return e.dimension }
 
+// Embed computes the TF-IDF embedding for the given text.
 func (e *Embedder) Embed(text string) ([]float64, error) {
 	if !e.prepared {
 		return nil, errors.New("tfidf embedder not prepared")

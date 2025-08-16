@@ -15,6 +15,7 @@ type SentenceChunker struct {
 	splitter          *regexp.Regexp
 }
 
+// NewSentenceChunker creates a sentence-based chunker with optional overlap.
 func NewSentenceChunker(sentencesPerChunk, overlapSentences int) *SentenceChunker {
 	if sentencesPerChunk <= 0 {
 		sentencesPerChunk = 5
@@ -29,6 +30,7 @@ func NewSentenceChunker(sentencesPerChunk, overlapSentences int) *SentenceChunke
 	}
 }
 
+// Chunk splits the provided document into sentence-based chunks.
 func (c *SentenceChunker) Chunk(document domain.Document) ([]domain.Chunk, error) {
 	sentences := c.splitter.FindAllString(document.Content, -1)
 	if len(sentences) == 0 {

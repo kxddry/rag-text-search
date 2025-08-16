@@ -13,6 +13,7 @@ import (
 
 // Storage is a minimal REST client to Qdrant.
 // It assumes cosine distance and creates the collection if missing.
+// Storage is a minimal REST client to Qdrant implementing the vector store.
 type Storage struct {
 	url        string
 	apiKey     string
@@ -21,6 +22,7 @@ type Storage struct {
 	client     *http.Client
 }
 
+// Config holds connection parameters for Qdrant.
 type Config struct {
 	URL        string
 	APIKey     string
@@ -28,6 +30,7 @@ type Config struct {
 	Timeout    time.Duration
 }
 
+// NewStorage creates a new Qdrant-backed vector store client.
 func NewStorage(cfg Config) *Storage {
 	timeout := cfg.Timeout
 	if timeout == 0 {
@@ -41,6 +44,7 @@ func NewStorage(cfg Config) *Storage {
 	}
 }
 
+// Init creates (or validates) the Qdrant collection with the given dimension.
 func (s *Storage) Init(dimension int) error {
 	if dimension <= 0 {
 		return errors.New("invalid dimension")
@@ -60,6 +64,7 @@ func (s *Storage) Init(dimension int) error {
 	return nil
 }
 
+// Upsert inserts or updates points in the Qdrant collection.
 func (s *Storage) Upsert(chunks []domain.Chunk, vectors [][]float64) error {
 	if len(chunks) != len(vectors) {
 		return errors.New("chunks and vectors length mismatch")
@@ -81,6 +86,7 @@ func (s *Storage) Upsert(chunks []domain.Chunk, vectors [][]float64) error {
 	return s.putJSON(fmt.Sprintf("%s/collections/%s/points?wait=true", s.url, s.collection), body)
 }
 
+// Search queries the Qdrant collection for nearest neighbors.
 func (s *Storage) Search(vector []float64, topK int) ([]domain.SearchResult, error) {
 	if topK <= 0 {
 		topK = 5
@@ -119,6 +125,7 @@ func (s *Storage) Search(vector []float64, topK int) ([]domain.SearchResult, err
 	return results, nil
 }
 
+// Clear attempts to drop the underlying Qdrant collection.
 func (s *Storage) Clear() error {
 	// Best-effort: drop collection
 	req, _ := http.NewRequest(http.MethodDelete, fmt.Sprintf("%s/collections/%s", s.url, s.collection), nil)

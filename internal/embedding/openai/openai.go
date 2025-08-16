@@ -12,6 +12,7 @@ import (
 	"time"
 )
 
+// Client is an OpenAI-compatible embeddings client implementing the Embedder interface.
 type Client struct {
 	baseURL    string
 	apiKey     string
@@ -22,6 +23,7 @@ type Client struct {
 	maxRetries int
 }
 
+// Config configures the OpenAI-compatible embeddings client.
 type Config struct {
 	BaseURL   string
 	APIKeyEnv string
@@ -29,6 +31,7 @@ type Config struct {
 	Timeout   time.Duration
 }
 
+// NewClient creates a new embeddings client using the provided configuration.
 func NewClient(cfg Config) (*Client, error) {
 	key := os.Getenv(cfg.APIKeyEnv)
 	if key == "" {
@@ -54,13 +57,16 @@ func NewClient(cfg Config) (*Client, error) {
 	}, nil
 }
 
+// Name returns the identifier of this embedder implementation.
 func (c *Client) Name() string { return "openai" }
 
 // Prepare is not required for remote embedding. We will lazily set dimension on first embed.
 func (c *Client) Prepare(corpus []string) error { return nil }
 
+// Dimension returns the dimensionality of the produced embedding vectors.
 func (c *Client) Dimension() int { return c.dimension }
 
+// Embed returns an embedding vector for the given text.
 func (c *Client) Embed(text string) ([]float64, error) {
 	type reqBody struct {
 		Input  string `json:"input,omitempty"`
