@@ -1,6 +1,6 @@
-module rag-text-search
+module rag
 
-go 1.22
+go 1.24.5
 
 require (
 	github.com/charmbracelet/bubbles v0.18.0

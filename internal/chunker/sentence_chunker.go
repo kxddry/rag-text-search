@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"rag-text-search/internal/domain"
+	"rag/internal/domain"
 )
 
 // SentenceChunker splits text into sentence-based chunks with overlap.

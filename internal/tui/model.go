@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -9,7 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"rag-text-search/internal/domain"
+	"rag/internal/domain"
 )
 
 type RAGPort interface {
@@ -18,14 +19,15 @@ type RAGPort interface {
 }
 
 type Model struct {
-	service  RAGPort
-	input    textinput.Model
-	viewport viewport.Model
-	results  []domain.SearchResult
-	summary  string
-	status   string
-	cursor   int
-	ready    bool
+	service   RAGPort
+	input     textinput.Model
+	viewport  viewport.Model
+	results   []domain.SearchResult
+	summary   string
+	status    string
+	cursor    int
+	ready     bool
+	lastQuery string
 }
 
 func New(service RAGPort, summary string) Model {
@@ -44,11 +46,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.ready = true
-		m.viewport.Width = msg.Width
-		m.viewport.Height = msg.Height - 3
-		m.viewport.SetContent(m.renderResults())
+		// account for frames around result and query boxes
+		_, rh := resultBoxStyle.GetFrameSize()
+		_, qh := queryBoxStyle.GetFrameSize()
+		totalHeaderLines := 2                                    // header + summary
+		totalFooterLines := 1                                    // status
+		reserved := totalHeaderLines + totalFooterLines + qh + 1 // 1 spacer
+		vh := msg.Height - reserved
+		if vh < 3 {
+			vh = 3
+		}
+		m.viewport.Width = max(20, msg.Width)
+		m.viewport.Height = max(3, vh-rh)
+		m.viewport.SetContent(m.renderCurrentResult())
 		return m, nil
 	case tea.KeyMsg:
+		// Global quits
+		if msg.Type == tea.KeyCtrlC || msg.Type == tea.KeyCtrlD {
+			return m, tea.Quit
+		}
 		switch msg.String() {
 		case "enter":
 			q := strings.TrimSpace(m.input.Value())
@@ -61,19 +77,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.status = fmt.Sprintf("Results for %q", q)
 					m.results = res
 					m.cursor = 0
+					m.lastQuery = q
 				}
-				m.viewport.SetContent(m.renderResults())
+				m.viewport.SetContent(m.renderCurrentResult())
 				return m, nil
 			}
-		case "n":
+		case "n", "right":
 			if len(m.results) > 0 {
 				m.cursor = (m.cursor + 1) % len(m.results)
-				m.viewport.SetContent(m.renderResults())
+				m.viewport.SetContent(m.renderCurrentResult())
 			}
-		case "N":
+		case "N", "left":
 			if len(m.results) > 0 {
 				m.cursor = (m.cursor - 1 + len(m.results)) % len(m.results)
-				m.viewport.SetContent(m.renderResults())
+				m.viewport.SetContent(m.renderCurrentResult())
 			}
 		}
 	}
@@ -88,22 +105,90 @@ func (m Model) View() string {
 	}
 	header := lipgloss.NewStyle().Bold(true).Render("RAG Text Search")
 	summary := lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Render(m.summary)
-	input := m.input.View()
+	input := queryBoxStyle.Render(m.input.View())
 	status := lipgloss.NewStyle().Foreground(lipgloss.Color("10")).Render(m.status)
-	return header + "\n" + summary + "\n" + m.viewport.View() + "\n" + input + "\n" + status
+	results := resultBoxStyle.Render(m.viewport.View())
+	return header + "\n" + summary + "\n" + results + "\n" + input + "\n" + status
 }
 
-func (m Model) renderResults() string {
+func (m Model) renderCurrentResult() string {
 	if len(m.results) == 0 {
 		return "No results yet."
 	}
-	var b strings.Builder
-	for i, r := range m.results {
-		prefix := "  "
-		if i == m.cursor {
-			prefix = "> "
-		}
-		b.WriteString(fmt.Sprintf("%s[%0.3f] %s\n", prefix, r.Score, r.Chunk.Text))
+	r := m.results[m.cursor]
+	title := fmt.Sprintf("Result %d/%d  score=%.3f", m.cursor+1, len(m.results), r.Score)
+	body := highlightBestSentence(r.Chunk.Text, m.lastQuery)
+	return title + "\n\n" + body
+}
+
+var (
+	resultBoxStyle = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0, 1)
+	queryBoxStyle  = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0, 1)
+	highlightStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("11")).Bold(true)
+	unicodeWordRe  = regexp.MustCompile(`\p{L}+(?:['’]\p{L}+)*`)
+	sentenceRe     = regexp.MustCompile(`(?m)(?U)([^.!?]+[.!?])`)
+)
+
+func highlightBestSentence(text, query string) string {
+	if strings.TrimSpace(text) == "" {
+		return text
 	}
-	return b.String()
+	sentences := sentenceRe.FindAllString(text, -1)
+	if len(sentences) == 0 {
+		sentences = []string{strings.TrimSpace(text)}
+	}
+	qTokens := toTokenSet(query)
+	if len(qTokens) == 0 {
+		return strings.Join(sentences, " ")
+	}
+	bestIdx := 0
+	bestScore := -1
+	for i, s := range sentences {
+		score := tokenOverlapScore(qTokens, s)
+		if score > bestScore {
+			bestScore = score
+			bestIdx = i
+		}
+	}
+	for i := range sentences {
+		sent := strings.TrimSpace(sentences[i])
+		if i == bestIdx {
+			sentences[i] = highlightStyle.Render(sent)
+		} else {
+			sentences[i] = sent
+		}
+	}
+	return strings.Join(sentences, " ")
+}
+
+func toTokenSet(s string) map[string]struct{} {
+	tokens := unicodeWordRe.FindAllString(strings.ToLower(s), -1)
+	m := make(map[string]struct{}, len(tokens))
+	for _, t := range tokens {
+		m[t] = struct{}{}
+	}
+	return m
+}
+
+func tokenOverlapScore(queryTokens map[string]struct{}, sentence string) int {
+	score := 0
+	tokens := unicodeWordRe.FindAllString(strings.ToLower(sentence), -1)
+	seen := make(map[string]struct{}, len(tokens))
+	for _, t := range tokens {
+		if _, ok := seen[t]; ok {
+			continue
+		}
+		seen[t] = struct{}{}
+		if _, ok := queryTokens[t]; ok {
+			score++
+		}
+	}
+	return score
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }

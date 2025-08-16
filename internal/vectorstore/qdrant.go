@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"rag-text-search/internal/domain"
+	"rag/internal/domain"
 )
 
 // QdrantStore is a minimal REST client to Qdrant.

@@ -15,7 +15,7 @@ type FrequencySummarizer struct {
 
 func NewFrequencySummarizer() *FrequencySummarizer {
 	return &FrequencySummarizer{
-		tokenPattern: regexp.MustCompile(`[A-Za-z']+`),
+		tokenPattern: regexp.MustCompile(`\p{L}+(?:['’]\p{L}+)*`),
 		stopwords:    defaultStopwords(),
 	}
 }

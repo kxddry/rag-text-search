@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
+	"regexp"
+	"sort"
 	"strings"
 
-	"rag-text-search/internal/domain"
+	"rag/internal/domain"
 )
 
 type RAGServiceImpl struct {
@@ -17,6 +19,7 @@ type RAGServiceImpl struct {
 	store               domain.VectorStore
 	summarizer          domain.Summarizer
 	summaryMaxSentences int
+	chunks              []domain.Chunk
 }
 
 func NewRAGService(chunker domain.Chunker, embedder domain.Embedder, store domain.VectorStore, summarizer domain.Summarizer, summaryMaxSentences int) *RAGServiceImpl {
@@ -61,6 +64,8 @@ func (s *RAGServiceImpl) IngestDocuments(paths []string) (string, error) {
 		allTextConcat.WriteString("\n")
 		allTextConcat.WriteString(d.Content)
 	}
+	// Keep chunks for fallback ranking
+	s.chunks = allChunks
 	// Prepare embedder with corpus
 	if err := s.embedder.Prepare(allTexts); err != nil {
 		return "", err
@@ -96,7 +101,106 @@ func (s *RAGServiceImpl) Query(query string, topK int) ([]domain.SearchResult, e
 	if err != nil {
 		return nil, err
 	}
-	return s.store.Search(vec, topK)
+	// Detect zero vector (no tokens)
+	zero := true
+	for _, v := range vec {
+		if v != 0 {
+			zero = false
+			break
+		}
+	}
+	if zero {
+		return s.lexicalSearch(query, topK), nil
+	}
+	res, err := s.store.Search(vec, topK)
+	if err != nil {
+		return nil, err
+	}
+	allZero := true
+	for _, r := range res {
+		if r.Score > 1e-9 {
+			allZero = false
+			break
+		}
+	}
+	if allZero {
+		return s.lexicalSearch(query, topK), nil
+	}
+	return res, nil
+}
+
+var (
+	unicodeWordRe = regexp.MustCompile(`\p{L}+(?:['’]\p{L}+)*`)
+)
+
+func (s *RAGServiceImpl) lexicalSearch(query string, topK int) []domain.SearchResult {
+	qset := toTokenSet(query)
+	type pair struct {
+		idx   int
+		score float64
+	}
+	scores := make([]pair, len(s.chunks))
+	for i, ch := range s.chunks {
+		scores[i] = pair{i, overlapOchiai(qset, ch.Text)}
+	}
+	sort.Slice(scores, func(i, j int) bool { return scores[i].score > scores[j].score })
+	if topK <= 0 {
+		topK = 5
+	}
+	if topK > len(scores) {
+		topK = len(scores)
+	}
+	out := make([]domain.SearchResult, 0, topK)
+	for i := 0; i < topK; i++ {
+		p := scores[i]
+		out = append(out, domain.SearchResult{Chunk: s.chunks[p.idx], Score: p.score})
+	}
+	return out
+}
+
+func toTokenSet(s string) map[string]struct{} {
+	tokens := unicodeWordRe.FindAllString(strings.ToLower(s), -1)
+	m := make(map[string]struct{}, len(tokens))
+	for _, t := range tokens {
+		m[t] = struct{}{}
+	}
+	return m
+}
+
+func overlapOchiai(qset map[string]struct{}, text string) float64 {
+	stoks := unicodeWordRe.FindAllString(strings.ToLower(text), -1)
+	seen := make(map[string]struct{}, len(stoks))
+	inter := 0
+	for _, t := range stoks {
+		if _, ok := seen[t]; ok {
+			continue
+		}
+		seen[t] = struct{}{}
+		if _, ok := qset[t]; ok {
+			inter++
+		}
+	}
+	if len(qset) == 0 || len(seen) == 0 {
+		return 0
+	}
+	// Ochiai coefficient: |A∩B| / sqrt(|A||B|)
+	// sqrt sizes; use float64
+	qa := float64(len(qset))
+	ba := float64(len(seen))
+	return float64(inter) / (sqrt(qa) * sqrt(ba))
+}
+
+func sqrt(x float64) float64 {
+	// small inline sqrt to avoid extra imports
+	// use Newton's method for a couple of iterations
+	if x <= 0 {
+		return 0
+	}
+	z := x
+	for i := 0; i < 6; i++ {
+		z = 0.5 * (z + x/z)
+	}
+	return z
 }
 
 func hashString(s string) string {

@@ -5,21 +5,22 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"rag-text-search/internal/chunker"
-	"rag-text-search/internal/config"
-	"rag-text-search/internal/domain"
-	"rag-text-search/internal/embedding"
-	"rag-text-search/internal/service"
-	"rag-text-search/internal/summarizer"
-	"rag-text-search/internal/tui"
-	"rag-text-search/internal/vectorstore"
+	"rag/internal/chunker"
+	"rag/internal/config"
+	"rag/internal/domain"
+	"rag/internal/embedding"
+	"rag/internal/service"
+	"rag/internal/summarizer"
+	"rag/internal/tui"
+	"rag/internal/vectorstore"
 )
 
 func main() {
-	cfgPath := flag.String("config", "config.yaml", "Path to config YAML")
+	cfgPath := flag.String("config", "", "Path to config YAML (optional; otherwise uses persisted default)")
 	flag.Parse()
 	inputs := flag.Args()
 	if len(inputs) == 0 {
@@ -27,7 +28,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	cfg, err := config.Load(*cfgPath)
+	var cfg *config.AppConfig
+	var err error
+	if *cfgPath == "" {
+		cfg, _, err = config.LoadDefault()
+	} else {
+		cfg, err = config.Load(*cfgPath)
+	}
 	if err != nil {
 		log.Fatalf("failed to load config: %v", err)
 	}
@@ -37,6 +44,20 @@ func main() {
 	switch cfg.Embedder.Type {
 	case "tfidf", "":
 		emb = embedding.NewTFIDFEmbedder()
+	case "openai":
+		if cfg.Embedder.OpenAI == nil {
+			log.Fatalf("openai embedder config missing")
+		}
+		client, err := embedding.NewOpenAIClient(embedding.OpenAIConfig{
+			BaseURL:   cfg.Embedder.OpenAI.BaseURL,
+			APIKeyEnv: cfg.Embedder.OpenAI.APIKeyEnv,
+			Model:     cfg.Embedder.OpenAI.Model,
+			Timeout:   time.Duration(cfg.Embedder.OpenAI.TimeoutSecs) * time.Second,
+		})
+		if err != nil {
+			log.Fatalf("openai embedder init failed: %v", err)
+		}
+		emb = client
 	default:
 		log.Fatalf("unknown embedder: %s", cfg.Embedder.Type)
 	}

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"sync"
 
-	"rag-text-search/internal/domain"
+	"rag/internal/domain"
 )
 
 // MemoryStore is a simple in-memory vector store using brute-force cosine similarity.

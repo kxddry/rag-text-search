@@ -4,12 +4,22 @@ import (
 	"errors"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 
 	"gopkg.in/yaml.v3"
 )
 
+type OpenAIEmbedderConfig struct {
+	BaseURL     string `yaml:"base_url"`
+	APIKeyEnv   string `yaml:"api_key_env"`
+	Model       string `yaml:"model"`
+	TimeoutSecs int    `yaml:"timeout_secs"`
+	BatchSize   int    `yaml:"batch_size"`
+}
+
 type EmbedderConfig struct {
-	Type string `yaml:"type"`
+	Type   string                `yaml:"type"`
+	OpenAI *OpenAIEmbedderConfig `yaml:"openai,omitempty"`
 }
 
 type ChunkerConfig struct {
@@ -43,17 +53,13 @@ type AppConfig struct {
 	Summarizer  SummarizerConfig  `yaml:"summarizer"`
 }
 
+// Load reads a config from a specified path. If the file does not exist, returns defaults.
 func Load(path string) (*AppConfig, error) {
 	data, err := ioutil.ReadFile(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			// Default configuration if no file is present
-			return &AppConfig{
-				Embedder:    EmbedderConfig{Type: "tfidf"},
-				Chunker:     ChunkerConfig{Type: "sentence", SentencesPerChunk: 5, OverlapSentences: 1},
-				VectorStore: VectorStoreConfig{Type: "memory"},
-				Summarizer:  SummarizerConfig{Type: "frequency", MaxSentences: 5},
-			}, nil
+			cfg := defaultConfig()
+			return cfg, nil
 		}
 		return nil, err
 	}
@@ -61,8 +67,82 @@ func Load(path string) (*AppConfig, error) {
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, err
 	}
+	applyConfigDefaults(&cfg)
+	return &cfg, nil
+}
+
+// LoadDefault tries ./config.yaml first, then ~/.config/rag-text-search/config.yaml.
+// If neither exists, it writes defaults to ~/.config/rag-text-search/config.yaml and returns them.
+func LoadDefault() (*AppConfig, string, error) {
+	cwdPath := "config.yaml"
+	if _, err := os.Stat(cwdPath); err == nil {
+		cfg, err := Load(cwdPath)
+		return cfg, cwdPath, err
+	}
+	userPath, err := defaultUserConfigPath()
+	if err != nil {
+		return nil, "", err
+	}
+	if _, err := os.Stat(userPath); err == nil {
+		cfg, err := Load(userPath)
+		return cfg, userPath, err
+	}
+	cfg := defaultConfig()
+	if err := Save(userPath, cfg); err != nil {
+		return nil, "", err
+	}
+	return cfg, userPath, nil
+}
+
+// Save writes the config to the given path, creating directories as needed.
+func Save(path string, cfg *AppConfig) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	data, err := yaml.Marshal(cfg)
+	if err != nil {
+		return err
+	}
+	return ioutil.WriteFile(path, data, 0o644)
+}
+
+func defaultUserConfigPath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, ".config", "rag-text-search", "config.yaml"), nil
+}
+
+func defaultConfig() *AppConfig {
+	cfg := &AppConfig{
+		Embedder:    EmbedderConfig{Type: "tfidf"},
+		Chunker:     ChunkerConfig{Type: "sentence", SentencesPerChunk: 5, OverlapSentences: 1},
+		VectorStore: VectorStoreConfig{Type: "memory"},
+		Summarizer:  SummarizerConfig{Type: "frequency", MaxSentences: 5},
+	}
+	return cfg
+}
+
+func applyConfigDefaults(cfg *AppConfig) {
 	if cfg.Chunker.SentencesPerChunk == 0 {
 		cfg.Chunker.SentencesPerChunk = 5
 	}
-	return &cfg, nil
+	if cfg.Embedder.Type == "openai" && cfg.Embedder.OpenAI != nil {
+		if cfg.Embedder.OpenAI.BaseURL == "" {
+			cfg.Embedder.OpenAI.BaseURL = "https://api.openai.com/v1"
+		}
+		if cfg.Embedder.OpenAI.APIKeyEnv == "" {
+			cfg.Embedder.OpenAI.APIKeyEnv = "OPENAI_API_KEY"
+		}
+		if cfg.Embedder.OpenAI.Model == "" {
+			cfg.Embedder.OpenAI.Model = "text-embedding-3-small"
+		}
+		if cfg.Embedder.OpenAI.TimeoutSecs == 0 {
+			cfg.Embedder.OpenAI.TimeoutSecs = 30
+		}
+		if cfg.Embedder.OpenAI.BatchSize == 0 {
+			cfg.Embedder.OpenAI.BatchSize = 32
+		}
+	}
 }

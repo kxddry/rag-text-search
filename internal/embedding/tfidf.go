@@ -22,7 +22,7 @@ type TFIDFEmbedder struct {
 func NewTFIDFEmbedder() *TFIDFEmbedder {
 	return &TFIDFEmbedder{
 		vocabulary:   make(map[string]int),
-		tokenPattern: regexp.MustCompile(`[A-Za-z']+`),
+		tokenPattern: regexp.MustCompile(`\p{L}+(?:['’]\p{L}+)*`),
 		stopwords:    defaultStopwords(),
 	}
 }
@@ -55,6 +55,9 @@ func (e *TFIDFEmbedder) Prepare(corpus []string) error {
 		terms = append(terms, term)
 	}
 	sort.Strings(terms)
+	if len(terms) == 0 {
+		return errors.New("no tokens found in corpus; ensure tokenizer supports your language")
+	}
 	e.vocabulary = make(map[string]int, len(terms))
 	e.idf = make([]float64, len(terms))
 	N := float64(len(corpus))
