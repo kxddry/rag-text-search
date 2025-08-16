@@ -2,7 +2,6 @@ package config
 
 import (
 	"errors"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -55,7 +54,7 @@ type AppConfig struct {
 
 // Load reads a config from a specified path. If the file does not exist, returns defaults.
 func Load(path string) (*AppConfig, error) {
-	data, err := ioutil.ReadFile(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			cfg := defaultConfig()
@@ -103,7 +102,7 @@ func Save(path string, cfg *AppConfig) error {
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(path, data, 0o644)
+	return os.WriteFile(path, data, 0o644)
 }
 
 func defaultUserConfigPath() (string, error) {

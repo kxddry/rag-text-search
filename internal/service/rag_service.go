@@ -4,7 +4,7 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -37,7 +37,7 @@ func (s *RAGServiceImpl) IngestDocuments(paths []string) (string, error) {
 			if !strings.HasSuffix(strings.ToLower(m), ".txt") {
 				continue
 			}
-			data, err := ioutil.ReadFile(m)
+			data, err := os.ReadFile(m)
 			if err != nil {
 				return "", err
 			}
