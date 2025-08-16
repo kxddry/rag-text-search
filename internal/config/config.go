@@ -70,8 +70,8 @@ func Load(path string) (*AppConfig, error) {
 	return &cfg, nil
 }
 
-// LoadDefault tries ./config.yaml first, then ~/.config/rag-text-search/config.yaml.
-// If neither exists, it writes defaults to ~/.config/rag-text-search/config.yaml and returns them.
+// LoadDefault tries ./config.yaml first, then ~/.config/rag/config.yaml.
+// If neither exists, it writes defaults to ~/.config/rag/config.yaml and returns them.
 func LoadDefault() (*AppConfig, string, error) {
 	cwdPath := "config.yaml"
 	if _, err := os.Stat(cwdPath); err == nil {
@@ -110,7 +110,7 @@ func defaultUserConfigPath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(home, ".config", "rag-text-search", "config.yaml"), nil
+		return filepath.Join(home, ".config", "rag", "config.yaml"), nil
 }
 
 func defaultConfig() *AppConfig {

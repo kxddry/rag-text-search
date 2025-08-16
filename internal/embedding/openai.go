@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"time"
@@ -59,10 +60,11 @@ func (c *OpenAIClient) Dimension() int { return c.dimension }
 
 func (c *OpenAIClient) Embed(text string) ([]float64, error) {
 	type reqBody struct {
-		Input string `json:"input"`
-		Model string `json:"model"`
+		Input  string `json:"input,omitempty"`
+		Prompt string `json:"prompt,omitempty"`
+		Model  string `json:"model"`
 	}
-	body := reqBody{Input: text, Model: c.model}
+	body := reqBody{Input: text, Prompt: text, Model: c.model}
 	data, _ := json.Marshal(body)
 	url := fmt.Sprintf("%s/embeddings", c.baseURL)
 	req, _ := http.NewRequest(http.MethodPost, url, bytes.NewReader(data))
@@ -76,24 +78,38 @@ func (c *OpenAIClient) Embed(text string) ([]float64, error) {
 	if resp.StatusCode >= 300 {
 		return nil, fmt.Errorf("openai embeddings failed: %s", resp.Status)
 	}
-	var out struct {
+	// Read payload and support both OpenAI-compatible and Ollama-native shapes
+	payload, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	// Try OpenAI-compatible response first
+	var openaiOut struct {
 		Data []struct {
 			Embedding []float64 `json:"embedding"`
 		} `json:"data"`
 	}
-	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&out); err != nil {
-		return nil, err
+	if err := json.Unmarshal(payload, &openaiOut); err == nil {
+		if len(openaiOut.Data) > 0 && len(openaiOut.Data[0].Embedding) > 0 {
+			v := openaiOut.Data[0].Embedding
+			if c.dimension == 0 {
+				c.dimension = len(v)
+			}
+			return v, nil
+		}
 	}
-	if len(out.Data) == 0 {
-		return nil, errors.New("no embedding returned")
+	// Fallback to Ollama-native shape: { "embedding": [...] }
+	var ollamaOut struct {
+		Embedding []float64 `json:"embedding"`
 	}
-	v := out.Data[0].Embedding
-	if len(v) == 0 {
-		return nil, errors.New("empty embedding")
+	if err := json.Unmarshal(payload, &ollamaOut); err == nil {
+		if len(ollamaOut.Embedding) > 0 {
+			v := ollamaOut.Embedding
+			if c.dimension == 0 {
+				c.dimension = len(v)
+			}
+			return v, nil
+		}
 	}
-	if c.dimension == 0 {
-		c.dimension = len(v)
-	}
-	return v, nil
+	return nil, errors.New("no embedding returned")
 }

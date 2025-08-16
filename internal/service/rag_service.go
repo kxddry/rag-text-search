@@ -70,20 +70,30 @@ func (s *RAGServiceImpl) IngestDocuments(paths []string) (string, error) {
 	if err := s.embedder.Prepare(allTexts); err != nil {
 		return "", err
 	}
-	if err := s.store.Init(s.embedder.Dimension()); err != nil {
+
+	// Reset store; we'll initialize it once we know the embedding dimension
+	if err := s.store.Clear(); err != nil {
 		return "", err
 	}
+
 	// Embed and upsert
 	vectors := make([][]float64, len(allChunks))
+	initialized := false
 	for i := range allChunks {
 		vec, err := s.embedder.Embed(allChunks[i].Text)
 		if err != nil {
 			return "", err
 		}
 		vectors[i] = vec
+		if !initialized {
+			if err := s.store.Init(len(vec)); err != nil {
+				return "", err
+			}
+			initialized = true
+		}
 	}
-	if err := s.store.Clear(); err != nil {
-		return "", err
+	if !initialized {
+		return "", fmt.Errorf("no vectors produced")
 	}
 	if err := s.store.Upsert(allChunks, vectors); err != nil {
 		return "", err
